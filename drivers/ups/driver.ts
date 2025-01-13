@@ -1,15 +1,24 @@
 'use strict';
 
-const { Driver } = require('homey');
-const Nut = require('../../lib/node-nut');
+import Homey from 'homey';
+import { NUTClient, Monitor } from 'nut-client'
+
 const { parseUPSStatus } = require('../../lib/Utils');
 
-class UPSDriver extends Driver {
+module.exports = class UPSDriver extends Homey.Driver {
 
-  nut;
+  private nut? : NUTClient;
 
+    /**
+   * onInit is called when the driver is initialized.
+   */
+    async onInit() {
+      this.log('MyDriver has been initialized');
+    }
+
+    
   // Pairing
-  onPair(session) {
+  async onPair(session: Homey.Driver.PairSession) {
     this.log('Pairing started');
 
     session.setHandler('getSettings', async () => {
@@ -22,7 +31,7 @@ class UPSDriver extends Driver {
       };
     });
 
-    const foundDevices = [];
+    const foundDevices : any = [];
 
     session.setHandler('connect', async (data) => {
       this.log('Connecting to server');
@@ -30,33 +39,23 @@ class UPSDriver extends Driver {
       try {
         const settings = data;
 
-        this.nut = new Nut(parseInt(settings.port, 10), settings.ip);
-
-        this.nut.on('error', (err) => {
-          this.log(`There was an error: ${err}`);
-        });
-
-        this.nut.on('close', () => {
-          this.log('Connection closed.');
-        });
+        this.nut = new NUTClient(settings.ip, parseInt(settings.port, 10));
+        // username / password : settings.username, settings.password
+        // error event ?
+        // close event ?
 
         this.log('Requesting list of active devices..');
+        const UPS = await this.nut.listUPS();
 
-        await this.nut.start()
-          .then(() => this.nut.SetUsername(settings.username))
-          .then(() => this.nut.SetPassword(settings.password))
-          .then(() => this.nut.GetUPSList())
-          .then(async (list) => {
-            for (const ups of Object.keys(list)) {
-              foundDevices.push(await this.getDeviceData(ups, settings));
-            }
-          })
-          .then(() => this.saveSettings(data))
-          .catch((err) => this.log(err))
-          .finally(() => {
-            this.nut.close();
-          });
-      } catch (err) {
+        for (const ups of UPS) {
+          foundDevices.push(await this.getDeviceData(ups, settings));
+        }
+
+        this.saveSettings(data);
+
+        // catch error ?
+        // close
+      } catch (err : any) {
         this.log(`There was an error: ${err.message}`);
       }
     });
@@ -108,5 +107,3 @@ class UPSDriver extends Driver {
   }
 
 }
-
-module.exports = UPSDriver;

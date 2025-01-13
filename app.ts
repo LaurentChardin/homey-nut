@@ -1,8 +1,8 @@
 'use strict';
 
-const Homey = require('homey');
+import Homey from 'homey';
 
-class MyApp extends Homey.App {
+module.exports = class MyApp extends Homey.App {
 
   /**
    * onInit is called when the app is initialized.
@@ -19,10 +19,8 @@ class MyApp extends Homey.App {
       const value = args.device.getCapabilityValue('measure_battery_runtime');
       return value === args.value;
     });
-
-    this.log('NUT has been initialized');
+    
+    this.log('MyApp has been initialized');
   }
 
 }
-
-module.exports = MyApp;

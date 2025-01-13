@@ -1,3 +1,0 @@
-[submodule "lib/node-nut"]
-	path = lib/node-nut
-	url = https://github.com/skarcha/node-nut.git

@@ -1,27 +1,40 @@
 'use strict';
 
-const { Device } = require('homey');
+import Homey from 'homey';
+import { NUTClient, Monitor } from 'nut-client'
+
 const { parseUPSStatus } = require('../../lib/Utils');
-const Nut = require('../../lib/node-nut');
 
-class UPSDevice extends Device {
+module.exports = class UPSDevice extends Homey.Device {
 
-  nut;
+  private nut? : NUTClient;
+	private id?: string;
+	private name?: string;
 
   /**
    * onInit is called when the device is initialized.
    */
   async onInit() {
-    this.initNut();
+    // @ts-ignore
+		this.id = this.getData().id;
+		this.name = this.getName();
 
-    this.device = this.getData();
+    this.nut = new NUTClient(this.getSetting('ip'), parseInt(this.getSetting('port'), 10));
     const updateInterval = Number(this.getSetting('interval')) * 1000;
-    const { device } = this;
-    this.log(`[${this.getName()}][${device.id}]`, `Update Interval: ${updateInterval}`);
-    this.log(`[${this.getName()}][${device.id}]`, 'Connected to device');
+
+    const monitor = new Monitor(this.nut, 'myUps', options);
+
+
+    this.log(`[${this.name}][${this.id}]`, `Update Interval: ${updateInterval}`);
+    this.log(`[${this.name}][${this.id}]`, 'Connected to device');
+
+    /*
     this.interval = setInterval(async () => {
       await this.getDeviceData();
     }, updateInterval);
+    */
+
+    await monitor.start();
 
     this.log('UPS device has been initialized');
   }
@@ -46,18 +59,6 @@ class UPSDevice extends Device {
       .finally(() => {
         this.nut.close();
       });
-  }
-
-  initNut() {
-    this.nut = new Nut(parseInt(this.getSetting('port'), 10), this.getSetting('ip'));
-
-    this.nut.on('error', (err) => {
-      this.log(`There was an error: ${err}`);
-    });
-
-    this.nut.on('close', () => {
-      this.log('Connection closed.');
-    });
   }
 
   setCapabilities(status) {
@@ -166,5 +167,3 @@ class UPSDevice extends Device {
   }
 
 }
-
-module.exports = UPSDevice;
