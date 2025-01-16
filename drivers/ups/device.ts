@@ -3,13 +3,17 @@
 import Homey from 'homey';
 import { NUTClient, Monitor } from 'nut-client'
 
-const { parseUPSStatus } = require('../../lib/Utils');
+import { parseUPSStatus, UpsStatusResult, UpsStatusValue } from '../../lib/Utils';
 
 module.exports = class UPSDevice extends Homey.Device {
 
   private nut? : NUTClient;
-	private id?: string;
-	private name?: string;
+	private id: string = '';
+  private upsname: string = '';
+	private name: string = '';
+
+  private monitor? : Monitor;
+  private interval?: NodeJS.Timeout;
 
   /**
    * onInit is called when the device is initialized.
@@ -17,51 +21,43 @@ module.exports = class UPSDevice extends Homey.Device {
   async onInit() {
     // @ts-ignore
 		this.id = this.getData().id;
+    this.upsname = this.getData().name;
 		this.name = this.getName();
 
-    this.nut = new NUTClient(this.getSetting('ip'), parseInt(this.getSetting('port'), 10));
+    //this.nut = new NUTClient(this.getSetting('ip'), parseInt(this.getSetting('port'), 10));
     const updateInterval = Number(this.getSetting('interval')) * 1000;
 
-    const monitor = new Monitor(this.nut, 'myUps', options);
-
+    // Support monitor event ?
+    // this.monitor = new Monitor(this.nut, 'myUps', {pollFrequency: updateInterval});
+    // await this.monitor.start();
 
     this.log(`[${this.name}][${this.id}]`, `Update Interval: ${updateInterval}`);
     this.log(`[${this.name}][${this.id}]`, 'Connected to device');
 
-    /*
     this.interval = setInterval(async () => {
       await this.getDeviceData();
     }, updateInterval);
-    */
-
-    await monitor.start();
 
     this.log('UPS device has been initialized');
   }
 
   async getDeviceData() {
-    const { device } = this;
-    this.log(`[${this.getName()}][${device.id}]`, 'Refresh device');
 
-    await this.nut.start()
-      .then(() => this.nut.SetUsername(this.getSetting.username))
-      .then(() => this.nut.SetPassword(this.getSetting.password))
-      .then(() => this.nut.GetUPSVars(device.name))
-      .then((res) => {
-        this.log(res);
-        return parseUPSStatus(res);
-      })
-      .then((res) => {
-        this.log(res);
-        this.setCapabilities(res);
-      })
-      .catch((err) => this.log(err))
-      .finally(() => {
-        this.nut.close();
-      });
+    this.log(`[${this.name}][${this.id}]`, 'Refresh device');
+
+    this.nut = new NUTClient(this.getSetting('ip'), parseInt(this.getSetting('port'), 10));
+
+    const UpsVariables = await this.nut?.listVariables(this.upsname);
+    const ParsedResults = parseUPSStatus(UpsVariables);
+    this.setCapabilities(ParsedResults);
+
+    this.nut.logout();
+
+    this.log('getDeviceData End');
   }
 
-  setCapabilities(status) {
+  setCapabilities(status : UpsStatusResult) {
+  
     const firstRun = this.getStoreValue('first_run');
     const deviceCapabilities = this.getStoreValue('capabilities');
 
@@ -81,19 +77,21 @@ module.exports = class UPSDevice extends Homey.Device {
     }
 
     const capabilityList = deviceCapabilities == null ? status.capabilities : deviceCapabilities;
-    capabilityList.forEach((capability) => {
+    
+    capabilityList.forEach((capability: string) => {
       const isSubCapability = capability.split('.').length > 1;
       if (isSubCapability) {
         const capabilityName = capability.split('.')[0];
         const subCapabilityName = capability.split('.').pop();
-        this.updateValue(`${[capabilityName]}.${[subCapabilityName]}`, status.values[capabilityName][subCapabilityName]);
+        if (subCapabilityName)
+          this.updateValue(`${[capabilityName]}.${[subCapabilityName]}`, status.values[capabilityName][subCapabilityName]);
       } else {
         this.updateValue(capability, status.values[capability]);
       }
     });
   }
 
-  updateValue(capability, value) {
+  updateValue(capability: string, value: any) {
     this.log(`Setting capability [${capability}] value to: ${value}`);
     this.setCapabilityValue(capability, value)
       .catch(this.error);
@@ -122,17 +120,20 @@ module.exports = class UPSDevice extends Homey.Device {
     oldSettings,
     newSettings,
     changedKeys,
-  }) {
-    const { interval } = this;
+  }: {
+    oldSettings: { [key: string]: boolean | string | number | undefined | null };
+    newSettings: { [key: string]: boolean | string | number | undefined | null };
+    changedKeys: string[];
+  }): Promise<string | void> {
     for (const name of changedKeys) {
       /* Log setting changes except for password */
       if (name !== 'password') {
         this.log(`Setting '${name}' set '${oldSettings[name]}' => '${newSettings[name]}'`);
       }
     }
-    if (oldSettings.interval !== newSettings.interval) {
+    if (oldSettings.interval !== newSettings.interval && typeof newSettings.interval == 'number') {
       this.log(`Delete old interval of ${oldSettings.interval}s and creating new ${newSettings.interval}s`);
-      clearInterval(interval);
+      clearInterval(this.interval);
       this.setUpdateInterval(newSettings.interval);
     }
   }
@@ -142,28 +143,32 @@ module.exports = class UPSDevice extends Homey.Device {
    * This method can be used this to synchronise the name to the device.
    * @param {string} name The new name
    */
-  async onRenamed(name) {
+  async onRenamed(name : string) {
     this.log(`${name} renamed`);
   }
 
-  setUpdateInterval(newInterval) {
+  setUpdateInterval(newInterval : number) {
     const updateInterval = Number(newInterval) * 1000;
     this.log(`Creating update interval with ${updateInterval}`);
+
     this.interval = setInterval(async () => {
       await this.getDeviceData();
     }, updateInterval);
+  
+    // TODO: update monitor ?
   }
 
   /**
    * onDeleted is called when the user deleted the device.
    */
   async onDeleted() {
-    const {
-      interval,
-      device,
-    } = this;
-    this.log(`${device.name} deleted`);
-    clearInterval(interval);
+    // TODO : kill monitor ?
+    // await this.monitor?.stop();
+
+    clearInterval(this.interval);
+    await this.nut?.logout();
+
+    this.log(`${this.name} deleted`);
   }
 
 }

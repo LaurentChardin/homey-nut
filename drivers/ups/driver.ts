@@ -1,27 +1,37 @@
 'use strict';
 
 import Homey from 'homey';
-import { NUTClient, Monitor } from 'nut-client'
+import { NUTClient, Monitor, UPS } from 'nut-client'
 
-const { parseUPSStatus } = require('../../lib/Utils');
+import { parseUPSStatus, UpsStatusResult, UpsStatusValue } from '../../lib/Utils';
+
+interface dataSettings {
+  ip: string,
+  port: number,
+  interval: number,
+  username: string,
+  password: string
+}
 
 module.exports = class UPSDriver extends Homey.Driver {
 
   private nut? : NUTClient;
 
-    /**
-   * onInit is called when the driver is initialized.
-   */
-    async onInit() {
-      this.log('MyDriver has been initialized');
-    }
+  /**
+ * onInit is called when the driver is initialized.
+ */
+  async onInit() {
+    this.log('UPSDriver has been initialized');
+  }
 
     
   // Pairing
   async onPair(session: Homey.Driver.PairSession) {
-    this.log('Pairing started');
+    this.log('UPSDriver Pairing started');
+    const foundDevices : any = [];
 
-    session.setHandler('getSettings', async () => {
+    // Triggerd on Start form loading
+    session.setHandler('getSettings', async ()  => {
       return {
         ip: this.homey.settings.get('ip'),
         port: this.homey.settings.get('port'),
@@ -31,8 +41,8 @@ module.exports = class UPSDriver extends Homey.Driver {
       };
     });
 
-    const foundDevices : any = [];
-
+    // Connect triggered by Start form
+    // TODO: argument typing
     session.setHandler('connect', async (data) => {
       this.log('Connecting to server');
 
@@ -47,14 +57,17 @@ module.exports = class UPSDriver extends Homey.Driver {
         this.log('Requesting list of active devices..');
         const UPS = await this.nut.listUPS();
 
-        for (const ups of UPS) {
-          foundDevices.push(await this.getDeviceData(ups, settings));
+        for (const up of UPS) {
+          foundDevices.push(await this.getDeviceData(up, settings));
         }
 
-        this.saveSettings(data);
+        this.log('Saving settings');
+        this._saveSettings(settings);
 
         // catch error ?
         // close
+        this.nut.logout();
+
       } catch (err : any) {
         this.log(`There was an error: ${err.message}`);
       }
@@ -65,7 +78,7 @@ module.exports = class UPSDriver extends Homey.Driver {
     });
   }
 
-  saveSettings(data) {
+ _saveSettings(data : dataSettings) {
     this.homey.settings.set('ip', data.ip);
     this.homey.settings.set('port', data.port);
     this.homey.settings.set('interval', data.interval);
@@ -73,22 +86,24 @@ module.exports = class UPSDriver extends Homey.Driver {
     this.homey.settings.set('password', data.password);
   }
 
-  async getDeviceData(name, settings) {
+  async getDeviceData(ups : UPS, settings : dataSettings) {
     let device = {};
-    this.log('Requesting UPS data for:', name);
-    const result = await this.nut.GetUPSVars(name)
+
+    this.log('Requesting UPS data for:', ups.name);
+    const result = await this.nut?.listVariables(ups.name)
       .then((res) => res)
       .catch((err) => this.log(err));
 
     if (result) {
-      this.log('Response:', result);
+      this.log('List Variable Response:', result);
 
-      const status = parseUPSStatus(result);
+      const status : UpsStatusResult = parseUPSStatus(result);
+
       device = {
-        name: status.values.name,
+        name: status.values?.name,
         data: {
-          name,
-          id: status.values.id,
+          name: ups.name,
+          id: status.values?.id,
         },
         settings: {
           ip: settings.ip,
@@ -103,6 +118,7 @@ module.exports = class UPSDriver extends Homey.Driver {
         },
       };
     }
+    
     return device;
   }
 

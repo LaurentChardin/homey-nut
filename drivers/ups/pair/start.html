@@ -59,6 +59,22 @@
         }
       },
       methods: {
+        getSettings() {
+          Homey.emit('getSettings', {}, (err, res) => {
+            if (err) {
+              Homey.alert(err);
+            } else {
+              if (res) {
+                this.data.ip = res.ip || '';
+                this.data.port = res.port || 3493;
+                this.data.interval = res.interval || 30;
+                this.data.username = res.username || '';
+                this.data.password = res.password || '';
+              }
+            }
+          });
+        },
+        
         connect() {
           Homey.showLoadingOverlay();
 
@@ -75,21 +91,7 @@
             }
           });
         },
-        getSettings() {
-          Homey.emit('getSettings', {}, (err, res) => {
-            if (err) {
-              Homey.alert(err);
-            } else {
-              if (res) {
-                this.data.ip = res.ip || '';
-                this.data.port = res.port || 3493;
-                this.data.interval = res.interval || 30;
-                this.data.username = res.username || '';
-                this.data.password = res.password || '';
-              }
-            }
-          });
-        }
+
       },
       beforeMount() {
         this.getSettings()
