@@ -4,14 +4,14 @@
   },
   "capabilities": [
     "measure_battery",
-    "alarm_battery",
     "alarm_status",
     "status",
     "measure_power",
     "measure_voltage.input",
     "measure_voltage.output",
     "measure_temperature",
-    "measure_battery_runtime"
+    "measure_battery_runtime",
+    "measure_load"
   ],
   "capabilitiesOptions": {
     "measure_temperature": {

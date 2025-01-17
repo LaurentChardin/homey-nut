@@ -59,6 +59,8 @@ export interface UpsStatusValue {
     output: number | null,
     [key: string]: any;
   };
+  measure_power: number | null;
+  measure_load: number | null;
   status: string;
   alarm_status: boolean;
   [key: string]: any;
@@ -91,18 +93,30 @@ export const parseUPSStatus = (body : any) : UpsStatusResult => {
   const _capabilities = [];
   const notCapabilities = new Set(['name', 'id']);
 
+  // battery.type
+  // ups.type
+  // input.transfer.high Low voltage transfer point (V)
+  // input.transfer.low High voltage transfer point (V)
+  // ups.realpower           : "Current value of real power (Watts)"
+  // ups.power               : "Current value of apparent power (Volt-Amps)".
+  // ups.power.nominal       : (VA)
+  // ups.load Load on UPS (percent)
+
+  // Power Factor = Real Power (kW) / Apparent Power (kVA)
   const _values : UpsStatusValue = {
     name: filled(body['ups.model']) ? body['ups.model'] : null, // device.model ?
+    id: filled(body['ups.serial']) ? body['ups.serial'] : null,
     measure_battery: filled(body['battery.charge']) ? parseInt(body['battery.charge'], 10) : null,
     measure_battery_runtime: filled(body['battery.runtime']) ? parseInt(body['battery.runtime'], 10) : null,
     measure_temperature: filled(body['battery.temperature']) ? parseFloat(body['battery.temperature']) : null,
-    id: filled(body['ups.serial']) ? body['ups.serial'] : null,
     measure_voltage: {
       input: filled(body['input.voltage']) ? parseInt(body['input.voltage'], 10) : null,
       output: filled(body['output.voltage']) ? parseInt(body['output.voltage'], 10) : null,
     },
     status: filled(body['ups.status']) ? body['ups.status'] : null,
     alarm_status: false,
+    measure_power: filled(body['ups.realpower']) ? parseFloat(body['ups.realpower']) : null,
+    measure_load: filled(body['ups.load']) ? parseFloat(body['ups.load']) : null,
   };
 
   if (filled(_values.status)) {

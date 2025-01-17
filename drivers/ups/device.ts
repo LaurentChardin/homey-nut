@@ -33,10 +33,6 @@ module.exports = class UPSDevice extends Homey.Device {
     this.log(`[${this.name}][${this.id}]`, `Update Interval: ${updateInterval}`);
     this.log(`[${this.name}][${this.id}]`, 'Connected to device');
 
-    DeviceApi.on('power-usage-changed', (watts) => {
-      this.setCapabilityValue('measure_power', watts).catch(this.error);
-    });
-
     // TODO: migrate to monitor ?
     this.interval = setInterval(async () => {
       await this.getDeviceData();
@@ -181,6 +177,7 @@ module.exports = class UPSDevice extends Homey.Device {
   async onDeleted() {
     // TODO : kill monitor ?
     // await this.monitor?.stop();
+    this.log(`${this.name} deleted - before`);
 
     clearInterval(this.interval);
     await this.nut?.logout();
@@ -188,4 +185,10 @@ module.exports = class UPSDevice extends Homey.Device {
     this.log(`${this.name} deleted`);
   }
 
+  /**
+   * This method is called when the device is destroyed.
+   */
+  async onUninit() {
+    this.log(`${this.name} unInit`);
+  };
 }
