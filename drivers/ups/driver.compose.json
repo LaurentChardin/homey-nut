@@ -4,8 +4,10 @@
   },
   "capabilities": [
     "measure_battery",
+    "alarm_battery",
     "alarm_status",
     "status",
+    "measure_power",
     "measure_voltage.input",
     "measure_voltage.output",
     "measure_temperature",
@@ -30,6 +32,9 @@
         "en": "Voltage output",
         "sv": "Utgångsspänning"
       }
+    },
+    "measure_power": {
+      "approximated": true
     }
   },
   "energy": {

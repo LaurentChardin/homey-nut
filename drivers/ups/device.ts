@@ -2,7 +2,6 @@
 
 import Homey from 'homey';
 import { NUTClient, Monitor } from 'nut-client'
-
 import { parseUPSStatus, UpsStatusResult, UpsStatusValue } from '../../lib/Utils';
 
 module.exports = class UPSDevice extends Homey.Device {
@@ -28,12 +27,17 @@ module.exports = class UPSDevice extends Homey.Device {
     const updateInterval = Number(this.getSetting('interval')) * 1000;
 
     // Support monitor event ?
-    // this.monitor = new Monitor(this.nut, 'myUps', {pollFrequency: updateInterval});
+    // this.monitor = new Monitor(this.nut, this.upsname, {pollFrequency: updateInterval});
     // await this.monitor.start();
 
     this.log(`[${this.name}][${this.id}]`, `Update Interval: ${updateInterval}`);
     this.log(`[${this.name}][${this.id}]`, 'Connected to device');
 
+    DeviceApi.on('power-usage-changed', (watts) => {
+      this.setCapabilityValue('measure_power', watts).catch(this.error);
+    });
+
+    // TODO: migrate to monitor ?
     this.interval = setInterval(async () => {
       await this.getDeviceData();
     }, updateInterval);
@@ -45,13 +49,26 @@ module.exports = class UPSDevice extends Homey.Device {
 
     this.log(`[${this.name}][${this.id}]`, 'Refresh device');
 
-    this.nut = new NUTClient(this.getSetting('ip'), parseInt(this.getSetting('port'), 10));
+    try {
+      // create a new connection
+      this.nut = new NUTClient(this.getSetting('ip'), parseInt(this.getSetting('port'), 10));
 
-    const UpsVariables = await this.nut?.listVariables(this.upsname);
-    const ParsedResults = parseUPSStatus(UpsVariables);
-    this.setCapabilities(ParsedResults);
+      // get all variables
+      const UpsVariables = await this.nut?.listVariables(this.upsname);
 
-    this.nut.logout();
+      // parse the nut payload
+      const ParsedResults = parseUPSStatus(UpsVariables);
+
+      // update capabilities
+      this.setCapabilities(ParsedResults);
+    }
+    catch(err) {
+      this.log("getDeviceData error: ", err)
+    }
+    finally{
+      // close the connection
+      if (this.nut) this.nut.logout();
+    }
 
     this.log('getDeviceData End');
   }
@@ -151,11 +168,11 @@ module.exports = class UPSDevice extends Homey.Device {
     const updateInterval = Number(newInterval) * 1000;
     this.log(`Creating update interval with ${updateInterval}`);
 
+    // TODO: update monitor ?
+
     this.interval = setInterval(async () => {
       await this.getDeviceData();
-    }, updateInterval);
-  
-    // TODO: update monitor ?
+    }, updateInterval);  
   }
 
   /**
